@@ -406,7 +406,18 @@ pub async fn resolve_vpc_id(client: &Client, token: &str, cache: &VpcIdCache) ->
 }
 
 /// Whether an error is GFN refusing the token, as opposed to the network being unhappy.
+///
+/// checks the code first, text checks stay as fallback since this hits the graphql endpoint
+/// not cloudmatch, so we dont always get a real requestStatus back
 fn is_authorization_error(error: &anyhow::Error) -> bool {
+    if error
+        .chain()
+        .find_map(|cause| cause.downcast_ref::<super::error_codes::GfnError>())
+        .is_some_and(|gfn| gfn.code.needs_reauth())
+    {
+        return true;
+    }
+
     let text = format!("{error:#}");
     text.contains("401 Unauthorized")
         || text.contains("403 Forbidden")
