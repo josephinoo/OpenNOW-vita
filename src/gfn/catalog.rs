@@ -278,13 +278,25 @@ pub async fn fetch_catalog_page(
         Some(_) => (catalog_search_query(), "catalog search"),
         None => (catalog_query(), "catalog"),
     };
+    // Filter to show only owned games - matches OpenNOW's LIBRARY_APPS_FILTER
+    // (libraryGames.ts:35-45). Excludes games with library.status == "NOT_OWNED".
     let mut variables = json!({
         "vpcId": vpc_id,
         "locale": LOCALE,
         "sortString": CATALOG_SORT,
         "fetchCount": CATALOG_PAGE_SIZE,
         "cursor": cursor,
-        "filters": {},
+        "filters": {
+            "variants": {
+                "gfn": {
+                    "library": {
+                        "status": {
+                            "notEquals": "NOT_OWNED"
+                        }
+                    }
+                }
+            }
+        },
     });
     if let Some(query) = query {
         variables["searchString"] = json!(query);
