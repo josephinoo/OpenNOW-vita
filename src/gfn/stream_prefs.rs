@@ -25,6 +25,8 @@ pub struct AppSettings {
     pub rear_touch_mode: String,
     #[serde(default = "default_catalog_filter")]
     pub catalog_filter: String,
+    #[serde(default)]
+    pub session_timer_enabled: bool,
 }
 
 fn default_catalog_sort() -> String {
@@ -50,6 +52,7 @@ impl Default for AppSettings {
             catalog_sort: "last_played".to_owned(),
             rear_touch_mode: "quadrant".to_owned(),
             catalog_filter: "my_games".to_owned(),
+            session_timer_enabled: false,
         }
     }
 }
@@ -366,4 +369,13 @@ pub fn rear_touch_mode() -> RearTouchMode {
 
 pub fn set_rear_touch_mode(mode: RearTouchMode) {
     update_settings(|s| s.rear_touch_mode = mode.as_text().to_owned());
+}
+
+pub fn session_timer_enabled() -> bool {
+    let s = load_or_init_settings();
+    s.session_timer_enabled
+}
+
+pub fn set_session_timer_enabled(enabled: bool) {
+    update_settings(|s| s.session_timer_enabled = enabled);
 }

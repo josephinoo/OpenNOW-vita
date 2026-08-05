@@ -395,7 +395,7 @@ async fn run_peer(
         }
     };
     let mut partial_input_ready = false;
-    let mut partial_sequence: u16 = 0;
+    let mut _partial_sequence: u16 = 0;
 
     let mut control_channel_id: Option<rtc::data_channel::RTCDataChannelId> = None;
 

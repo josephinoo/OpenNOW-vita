@@ -44,6 +44,8 @@ pub enum AppCommand {
     SetFilter(crate::app::CatalogFilter),
     /// Emitted by the stream-quality section of the account popup.
     SetStreamFps(crate::gfn::stream_prefs::StreamFps),
+    /// Emitted by the stream toolbar to toggle the session timer overlay.
+    ToggleSessionTimer,
     /// Emitted by the rear-trigger section of the account popup.
     SetTriggerIntensity(crate::gfn::stream_prefs::TriggerIntensity),
     /// Closes the first-run controls explainer for good.

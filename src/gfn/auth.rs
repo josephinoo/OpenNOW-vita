@@ -195,6 +195,7 @@ pub async fn poll_device_login(
             expires_at_unix: expires_at_unix(payload.expires_in),
             client_token: payload.client_token,
             client_token_expires_at_unix: 0,
+            membership_tier: None,
         };
         // Grab the long-lived credential right away, while the access token is certainly valid.
         if tokens.client_token.is_none() {
@@ -240,6 +241,9 @@ pub struct AuthTokens {
     pub client_token: Option<String>,
     #[serde(default)]
     pub client_token_expires_at_unix: u64,
+    /// Extracted from `mes.geforcenow.com/v4/subscriptions` when the session is validated.
+    #[serde(default)]
+    pub membership_tier: Option<String>,
 }
 
 impl AuthTokens {
@@ -344,6 +348,7 @@ fn merge_refreshed(previous: &AuthTokens, response: TokenResponse) -> AuthTokens
             previous.client_token_expires_at_unix
         },
         client_token: response.client_token.or_else(|| previous.client_token.clone()),
+        membership_tier: previous.membership_tier.clone(),
     }
 }
 
@@ -599,6 +604,46 @@ pub fn device_id() -> String {
     id
 }
 
+/// Fetches the user's membership tier from NVIDIA's subscriptions API.
+pub async fn fetch_membership_tier(
+    client: &reqwest::Client,
+    token: &str,
+    vpc_id: &str,
+    user_id: &str,
+) -> Result<String> {
+    let url = format!(
+        "https://mes.geforcenow.com/v4/subscriptions?serviceName=gfn_pc&languageCode=en_US&vpcId={vpc_id}&userId={user_id}"
+    );
+
+    let request = client
+        .get(&url)
+        .header(reqwest::header::AUTHORIZATION, format!("GFNJWT {token}"))
+        .header(reqwest::header::USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36")
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .header(reqwest::header::ACCEPT, "application/json");
+
+    let response = request
+        .send()
+        .await
+        .context("subscription network request failed")?;
+
+    if !response.status().is_success() {
+        anyhow::bail!("subscription API failed with {}", response.status());
+    }
+
+    let payload: serde_json::Value = response
+        .json()
+        .await
+        .context("subscription response was not valid JSON")?;
+
+    let tier = payload
+        .get("membershipTier")
+        .and_then(|t| t.as_str())
+        .context("membershipTier field missing in subscription response")?;
+
+    Ok(tier.to_owned())
+}
+
 const DEVICE_ID_PATH: &str = "ux0:data/opennow-vita/device-id.txt";
 
 fn load_device_id() -> Option<String> {
@@ -776,6 +821,7 @@ mod tests {
             expires_at_unix: 1_000,
             client_token: Some("old-client".to_owned()),
             client_token_expires_at_unix: 2_000,
+            membership_tier: None,
         }
     }
 

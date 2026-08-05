@@ -132,8 +132,8 @@ impl VitaSurface {
         let (width, height) = (output.width, output.height);
         let force_iyuv = self.force_iyuv;
         let mut format = VideoPixelFormat::Bgr565;
-        let mut create_targets = |pixel_format: PixelFormatEnum| -> Result<[Texture; VIDEO_TEXTURE_COUNT]> {
-            let mut create_one = || {
+        let create_targets = |pixel_format: PixelFormatEnum| -> Result<[Texture; VIDEO_TEXTURE_COUNT]> {
+            let create_one = || {
                 self.canvas
                     .create_texture_streaming(pixel_format, width, height)
                     .map_err(anyhow::Error::msg)

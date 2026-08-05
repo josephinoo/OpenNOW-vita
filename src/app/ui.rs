@@ -159,6 +159,7 @@ enum StreamIcon {
     Collapse,
     Expand,
     Controls,
+    Clock,
 }
 
 fn paint_stream_icon(painter: &egui::Painter, rect: egui::Rect, icon: StreamIcon, tint: egui::Color32) {
@@ -268,6 +269,20 @@ fn paint_stream_icon(painter: &egui::Painter, rect: egui::Rect, icon: StreamIcon
             let btn_cx = inset.min.x + inset.width() * 0.7;
             painter.circle_filled(egui::pos2(btn_cx - 1.8, dpad_cy + 1.2), 1.0, tint);
             painter.circle_filled(egui::pos2(btn_cx + 1.8, dpad_cy - 1.2), 1.0, tint);
+        }
+        StreamIcon::Clock => {
+            let stroke = egui::Stroke::new(1.2_f32, tint);
+            let center = rect.center();
+            let radius = rect.width().min(rect.height()) * 0.45;
+            painter.circle_stroke(center, radius, stroke);
+            
+            // Draw clock hands
+            let cx = center.x;
+            let cy = center.y;
+            // Minute hand pointing up-right
+            painter.line_segment([center, egui::pos2(cx + radius * 0.4, cy - radius * 0.5)], stroke);
+            // Hour hand pointing left
+            painter.line_segment([center, egui::pos2(cx - radius * 0.5, cy)], stroke);
         }
     }
 }
@@ -669,6 +684,14 @@ pub fn build_ui(ctx: &egui::Context, app: &App) -> Vec<AppCommand> {
         && let Some(cmd) = stream_controls_modal(ctx, &i18n)
     {
         commands.push(cmd);
+    }
+
+    if crate::gfn::stream_prefs::session_timer_enabled() {
+        if let AppState::Streaming { session_start, .. } = &app.state {
+            let tier_str = crate::gfn::auth::load_tokens()
+                .and_then(|t| t.membership_tier);
+            session_timer_overlay(ctx, *session_start, tier_str.as_deref());
+        }
     }
 
     if app.show_controls_hint && matches!(app.state, AppState::Streaming { .. })
@@ -1138,7 +1161,7 @@ fn language_picker(
         .frame(
             egui::Frame::default()
                 .fill(BG_PANEL)
-                .stroke(egui::Stroke::new(1.0, BORDER))
+                .stroke(egui::Stroke::new(1.0_f32, BORDER))
                 .corner_radius(10.0)
                 .inner_margin(egui::Margin::symmetric(14, 12)),
         )
@@ -1535,7 +1558,7 @@ fn title_list(ui: &mut egui::Ui, i18n: &I18n, view: &CatalogView<'_>) -> Vec<App
                     painter.rect_stroke(
                         rect,
                         6.0,
-                        egui::Stroke::new(1.5, ACCENT),
+                        egui::Stroke::new(1.5_f32, ACCENT),
                         egui::StrokeKind::Inside,
                     );
                     painter.rect_filled(
@@ -2047,7 +2070,7 @@ fn session_launch_overlay(
         .frame(
             egui::Frame::default()
                 .fill(BG_PANEL)
-                .stroke(egui::Stroke::new(1.0, BORDER))
+                .stroke(egui::Stroke::new(1.0_f32, BORDER))
                 .corner_radius(10.0)
                 .inner_margin(egui::Margin::symmetric(16, 14)),
         )
@@ -2267,7 +2290,7 @@ fn launch_stepper(ui: &mut egui::Ui, i18n: &I18n, stage: LaunchStage, queue_skip
                     egui::pos2(x - gap + STEP_DOT_RADIUS + 2.0, dot_y),
                     egui::pos2(x - STEP_DOT_RADIUS - 2.0, dot_y),
                 ],
-                egui::Stroke::new(2.0, if reached { ACCENT } else { BORDER }),
+                egui::Stroke::new(2.0_f32, if reached { ACCENT } else { BORDER }),
             );
         }
 
@@ -2281,7 +2304,7 @@ fn launch_stepper(ui: &mut egui::Ui, i18n: &I18n, stage: LaunchStage, queue_skip
             },
         );
         if reached && step != stage.index() {
-            painter.circle_stroke(center, STEP_DOT_RADIUS, egui::Stroke::new(1.5, ACCENT));
+            painter.circle_stroke(center, STEP_DOT_RADIUS, egui::Stroke::new(1.5_f32, ACCENT));
         }
         painter.text(
             center,
@@ -2419,7 +2442,7 @@ fn confirm_exit_modal(ctx: &egui::Context, i18n: &I18n) -> Option<AppCommand> {
         .frame(
             egui::Frame::default()
                 .fill(BG_PANEL)
-                .stroke(egui::Stroke::new(1.0, BORDER))
+                .stroke(egui::Stroke::new(1.0_f32, BORDER))
                 .corner_radius(10.0)
                 .inner_margin(egui::Margin::symmetric(16, 14)),
         )
@@ -2553,6 +2576,18 @@ fn streaming_screen(
                     reserve_stream_touch(ui.ctx(), stats.rect);
                     if stats.clicked() {
                         command = Some(AppCommand::ToggleStreamStats);
+                    }
+
+                    // 2.5 Session Timer
+                    let timer_active = crate::gfn::stream_prefs::session_timer_enabled();
+                    let timer = stream_icon_button(
+                        ui,
+                        StreamIcon::Clock,
+                        if timer_active { ACCENT } else { TEXT_DIM },
+                    );
+                    reserve_stream_touch(ui.ctx(), timer.rect);
+                    if timer.clicked() {
+                        command = Some(AppCommand::ToggleSessionTimer);
                     }
 
                     // 3. Controls Settings (L2/R2 and L3/R3 modal)
@@ -2846,6 +2881,60 @@ fn draw_qr(ui: &mut egui::Ui, verification_uri: &str, target_size: f32) {
             painter.rect_filled(module_rect, 0.0, egui::Color32::BLACK);
         }
     }
+}
+
+fn session_timer_overlay(
+    ctx: &egui::Context,
+    start_time: std::time::Instant,
+    tier_str: Option<&str>,
+) {
+    let tier_val = tier_str.unwrap_or("Free");
+    let max_duration: u32 = match tier_val {
+        "Ultimate" | "RTX3080" => 8 * 60 * 60, // 8 hours
+        "Premium" | "Priority" => 6 * 60 * 60, // 6 hours
+        _ => 60 * 60,                          // 1 hour for Free
+    };
+    
+    let elapsed = start_time.elapsed().as_secs() as u32;
+    let _remaining = max_duration.saturating_sub(elapsed);
+    let progress = (elapsed as f32 / max_duration as f32).clamp(0.0, 1.0);
+
+    let format_time = |secs: u32| -> String {
+        let hours = secs / 3600;
+        let mins = (secs % 3600) / 60;
+        let s = secs % 60;
+        if hours > 0 {
+            format!("{hours}:{mins:02}:{s:02}")
+        } else {
+            format!("{mins:02}:{s:02}")
+        }
+    };
+
+    let elapsed_str = format_time(elapsed);
+    let total_str = format_time(max_duration);
+    let text = format!("{elapsed_str} / {total_str}");
+
+    egui::Window::new("session_timer_overlay")
+        .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, -10.0))
+        .title_bar(false)
+        .resizable(false)
+        .collapsible(false)
+        .frame(
+            egui::Frame::window(&ctx.style())
+                .fill(egui::Color32::from_black_alpha(200))
+                .inner_margin(egui::Margin::symmetric(10, 6))
+                .corner_radius(8.0),
+        )
+        .show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("▼").color(egui::Color32::WHITE)); // Flechita solicitada
+                
+                let bar = egui::ProgressBar::new(progress)
+                    .text(egui::RichText::new(text).color(egui::Color32::WHITE))
+                    .desired_width(120.0);
+                ui.add(bar);
+            });
+        });
 }
 
 #[cfg(test)]

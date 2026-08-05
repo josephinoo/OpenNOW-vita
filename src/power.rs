@@ -82,7 +82,7 @@ impl Drop for PerformanceMode {
 /// shell that already changed clocks puts them back where they actually were.
 #[cfg(target_os = "vita")]
 fn set_clocks(clocks: Clocks) {
-    let mut apply = |name: &str, mhz: i32, setter: unsafe extern "C" fn(i32) -> i32| {
+    let apply = |name: &str, mhz: i32, setter: unsafe extern "C" fn(i32) -> i32| {
         let result = unsafe { setter(mhz) };
         if result < 0 {
             eprintln!("{name}({mhz}) failed: {result:#x}");

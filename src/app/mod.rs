@@ -385,6 +385,7 @@ pub enum AppState {
         session: SessionInfo,
         handle: SignalingHandle,
         peer: crate::gfn::peer::PeerEngine,
+        session_start: std::time::Instant,
     },
     Error {
         message: String,
@@ -700,6 +701,12 @@ impl App {
                 // Takes effect on the next launch: the frame rate is negotiated in the SDP answer
                 // and cannot be renegotiated mid-session.
                 crate::gfn::stream_prefs::set_fps(fps);
+                current_state
+            }
+            AppCommand::ToggleSessionTimer => {
+                crate::gfn::stream_prefs::set_session_timer_enabled(
+                    !crate::gfn::stream_prefs::session_timer_enabled(),
+                );
                 current_state
             }
             AppCommand::SelectGame(index) => {
@@ -1370,6 +1377,22 @@ impl App {
         let tokens = tokens.clone();
         let cache = vpc_id_cache.clone();
         let user_id = user.user_id.clone();
+
+        let client_for_tier = client.clone();
+        let tokens_for_tier = tokens.clone();
+        let cache_for_tier = vpc_id_cache.clone();
+        let user_id_for_tier = user.user_id.clone();
+        tokio::spawn(async move {
+            if tokens_for_tier.membership_tier.is_none() {
+                if let Ok(vpc_id) = crate::gfn::catalog::resolve_vpc_id(&client_for_tier, tokens_for_tier.bearer(), &cache_for_tier).await {
+                    if let Ok(tier) = crate::gfn::auth::fetch_membership_tier(&client_for_tier, tokens_for_tier.bearer(), &vpc_id, &user_id_for_tier).await {
+                        let mut updated_tokens = tokens_for_tier.clone();
+                        updated_tokens.membership_tier = Some(tier);
+                        let _ = crate::gfn::auth::save_tokens(&updated_tokens);
+                    }
+                }
+            }
+        });
         let handle: JoinHandle<Result<catalog::CatalogPage>> = tokio::spawn(async move {
             // Renew first when the saved token is near expiry. This runs at startup with whatever
             // was on the memory card, and the proactive refresh in `tick` only gets a turn *after*
@@ -1793,6 +1816,7 @@ impl App {
                 session,
                 mut handle,
                 mut peer,
+                session_start: _session_start,
             } => {
                 let mut fatal_reason: Option<String> = None;
 
@@ -1874,6 +1898,7 @@ impl App {
                         session,
                         handle,
                         peer,
+                        session_start: std::time::Instant::now(),
                     };
                 }
             }
@@ -1922,6 +1947,7 @@ impl App {
                                 session,
                                 handle,
                                 peer,
+                                session_start: std::time::Instant::now(),
                             };
                         }
                         Err(error) => {

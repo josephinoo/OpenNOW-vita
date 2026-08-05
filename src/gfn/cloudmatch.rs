@@ -949,7 +949,7 @@ fn build_session_request_body(
             "remoteControllersBitmap": 0,
             "clientTimezoneOffset": 0,
             "enhancedStreamMode": 1,
-            "appLaunchMode": 0,
+            "appLaunchMode": 2,
             "secureRTSPSupported": false,
             "partnerCustomData": "",
             "accountLinked": true,
