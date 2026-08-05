@@ -2927,8 +2927,24 @@ fn session_timer_overlay(
         )
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("▼").color(egui::Color32::WHITE)); // Flechita solicitada
-                
+                // Vector Clock Icon
+                let (icon_rect, _) = ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
+                paint_stream_icon(ui.painter(), icon_rect, StreamIcon::Clock, egui::Color32::WHITE);
+
+                // Downward Vector Arrow (Triangle)
+                let (arrow_rect, _) = ui.allocate_exact_size(egui::vec2(10.0, 16.0), egui::Sense::hover());
+                let arrow_center = arrow_rect.center();
+                let arrow_points = [
+                    egui::pos2(arrow_center.x - 3.5, arrow_center.y - 2.0),
+                    egui::pos2(arrow_center.x + 3.5, arrow_center.y - 2.0),
+                    egui::pos2(arrow_center.x, arrow_center.y + 2.5),
+                ];
+                ui.painter().add(egui::Shape::convex_polygon(
+                    arrow_points.to_vec(),
+                    egui::Color32::WHITE,
+                    egui::Stroke::NONE,
+                ));
+
                 let bar = egui::ProgressBar::new(progress)
                     .text(egui::RichText::new(text).color(egui::Color32::WHITE))
                     .desired_width(120.0);

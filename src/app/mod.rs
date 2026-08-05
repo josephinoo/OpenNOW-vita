@@ -1816,7 +1816,7 @@ impl App {
                 session,
                 mut handle,
                 mut peer,
-                session_start: _session_start,
+                session_start,
             } => {
                 let mut fatal_reason: Option<String> = None;
 
@@ -1898,7 +1898,7 @@ impl App {
                         session,
                         handle,
                         peer,
-                        session_start: std::time::Instant::now(),
+                        session_start,
                     };
                 }
             }

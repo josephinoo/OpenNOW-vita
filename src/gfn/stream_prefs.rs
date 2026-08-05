@@ -25,8 +25,12 @@ pub struct AppSettings {
     pub rear_touch_mode: String,
     #[serde(default = "default_catalog_filter")]
     pub catalog_filter: String,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub session_timer_enabled: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 fn default_catalog_sort() -> String {
@@ -52,7 +56,7 @@ impl Default for AppSettings {
             catalog_sort: "last_played".to_owned(),
             rear_touch_mode: "quadrant".to_owned(),
             catalog_filter: "my_games".to_owned(),
-            session_timer_enabled: false,
+            session_timer_enabled: true,
         }
     }
 }
